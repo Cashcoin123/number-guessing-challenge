@@ -1,20 +1,20 @@
-{
-  "name": "number-guessing-challenge-backend",
-  "version": "1.0.0",
-  "private": true,
-  "description": "Backend API for Number Guessing Challenge",
-  "main": "src/server.js",
-  "scripts": {
-    "dev": "node src/server.js",
-    "start": "node src/server.js"
-  },
-  "keywords": ["game", "api", "realtime"],
-  "author": "Cashcoin123",
-  "license": "MIT",
-  "dependencies": {
-    "cors": "^2.8.5",
-    "dotenv": "^16.4.5",
-    "express": "^4.19.2",
-    "socket.io": "^4.7.5"
+const admin = require('firebase-admin');
+
+function initFirebase() {
+  if (!process.env.FIREBASE_PROJECT_ID) {
+    return null;
   }
+
+  if (!admin.apps.length) {
+    admin.initializeApp({
+      credential: admin.credential.applicationDefault(),
+      projectId: process.env.FIREBASE_PROJECT_ID,
+    });
+  }
+
+  return admin.firestore();
 }
+
+module.exports = {
+  initFirebase,
+};

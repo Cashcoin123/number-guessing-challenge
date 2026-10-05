@@ -1,3 +1,5 @@
+require('dotenv').config();
+
 const fs = require('fs');
 const path = require('path');
 const { initFirebase } = require('../config/firebase');
@@ -7,10 +9,11 @@ const USERS_FILE = path.join(DATA_DIR, 'users.json');
 const CHAT_FILE = path.join(DATA_DIR, 'chat_messages.json');
 const LEADERBOARD_FILE = path.join(DATA_DIR, 'leaderboard.json');
 const GAME_FILE = path.join(DATA_DIR, 'game_data.json');
-const USE_FIREBASE = process.env.USE_FIREBASE === 'true';
-const db = USE_FIREBASE ? initFirebase() : null;
 
-function ensureFile(filePath, defaultValue = []) {
+const USE_FIREBASE = process.env.USE_FIREBASE === 'true';
+const firebaseDb = initFirebase();
+
+function ensureFile(filePath, defaultValue) {
   if (!fs.existsSync(DATA_DIR)) {
     fs.mkdirSync(DATA_DIR, { recursive: true });
   }
@@ -44,8 +47,8 @@ function writeJson(filePath, data) {
 }
 
 async function getUsers() {
-  if (USE_FIREBASE && db) {
-    const snapshot = await db.collection('users').get();
+  if (USE_FIREBASE && firebaseDb) {
+    const snapshot = await firebaseDb.collection('users').get();
     const users = {};
     snapshot.forEach((doc) => {
       users[doc.id] = doc.data();
@@ -57,11 +60,10 @@ async function getUsers() {
 }
 
 async function saveUsers(users) {
-  if (USE_FIREBASE && db) {
-    const batch = db.batch();
-    Object.entries(users).forEach(([key, value]) => {
-      const ref = db.collection('users').doc(key);
-      batch.set(ref, value);
+  if (USE_FIREBASE && firebaseDb) {
+    const batch = firebaseDb.batch();
+    Object.entries(users).forEach(([uid, user]) => {
+      batch.set(firebaseDb.collection('users').doc(uid), user);
     });
     await batch.commit();
     return;
@@ -71,8 +73,13 @@ async function saveUsers(users) {
 }
 
 async function getChatMessages() {
-  if (USE_FIREBASE && db) {
-    const snapshot = await db.collection('chat_messages').orderBy('timestamp', 'asc').limit(20).get();
+  if (USE_FIREBASE && firebaseDb) {
+    const snapshot = await firebaseDb
+      .collection('chat_messages')
+      .orderBy('timestamp', 'asc')
+      .limit(20)
+      .get();
+
     return snapshot.docs.map((doc) => doc.data());
   }
 
@@ -80,22 +87,31 @@ async function getChatMessages() {
 }
 
 async function saveChatMessages(messages) {
-  if (USE_FIREBASE && db) {
-    const batch = db.batch();
-    messages.slice(-100).forEach((entry, index) => {
-      const id = entry.id || `${entry.username}-${entry.timestamp || index}`;
-      batch.set(db.collection('chat_messages').doc(id), { ...entry, id });
+  if (USE_FIREBASE && firebaseDb) {
+    const batch = firebaseDb.batch();
+    const trimmed = (messages || []).slice(-100);
+
+    trimmed.forEach((entry, index) => {
+      const id = entry.id || `${entry.userId || 'guest'}-${entry.timestamp || index}`;
+      const ref = firebaseDb.collection('chat_messages').doc(id);
+      batch.set(ref, { ...entry, id });
     });
+
     await batch.commit();
     return;
   }
 
-  writeJson(CHAT_FILE, messages);
+  writeJson(CHAT_FILE, messages || []);
 }
 
 async function getLeaderboard() {
-  if (USE_FIREBASE && db) {
-    const snapshot = await db.collection('leaderboard').orderBy('bestScore', 'desc').limit(50).get();
+  if (USE_FIREBASE && firebaseDb) {
+    const snapshot = await firebaseDb
+      .collection('leaderboard')
+      .orderBy('bestScore', 'desc')
+      .limit(50)
+      .get();
+
     return snapshot.docs.map((doc) => doc.data());
   }
 
@@ -103,27 +119,34 @@ async function getLeaderboard() {
 }
 
 async function saveLeaderboard(entries) {
-  if (USE_FIREBASE && db) {
-    const batch = db.batch();
-    entries.slice(0, 50).forEach((entry, index) => {
-      batch.set(db.collection('leaderboard').doc(String(index + 1)), entry);
+  if (USE_FIREBASE && firebaseDb) {
+    const batch = firebaseDb.batch();
+    const trimmed = (entries || []).slice(0, 50);
+
+    trimmed.forEach((entry, index) => {
+      batch.set(firebaseDb.collection('leaderboard').doc(String(index + 1)), entry);
     });
+
     await batch.commit();
     return;
   }
 
-  writeJson(LEADERBOARD_FILE, entries);
+  writeJson(LEADERBOARD_FILE, entries || []);
 }
 
 async function getGameStats() {
-  if (USE_FIREBASE && db) {
-    const doc = await db.collection('game').doc('stats').get();
-    return doc.exists ? doc.data() : {
-      bestScore: 0,
-      streak: 0,
-      totalGames: 0,
-      lastBonusTime: 0,
-    };
+  if (USE_FIREBASE && firebaseDb) {
+    const doc = await firebaseDb.collection('game').doc('stats').get();
+    if (!doc.exists) {
+      return {
+        bestScore: 0,
+        streak: 0,
+        totalGames: 0,
+        lastBonusTime: 0,
+      };
+    }
+
+    return doc.data();
   }
 
   return readJson(GAME_FILE, {
@@ -135,16 +158,20 @@ async function getGameStats() {
 }
 
 async function saveGameStats(data) {
-  if (USE_FIREBASE && db) {
-    await db.collection('game').doc('stats').set(data, { merge: true });
+  if (USE_FIREBASE && firebaseDb) {
+    await firebaseDb.collection('game').doc('stats').set(data, { merge: true });
     return;
   }
 
-  writeJson(GAME_FILE, data);
+  writeJson(GAME_FILE, data || {
+    bestScore: 0,
+    streak: 0,
+    totalGames: 0,
+    lastBonusTime: 0,
+  });
 }
 
 module.exports = {
-  ensureFile,
   getUsers,
   saveUsers,
   getChatMessages,

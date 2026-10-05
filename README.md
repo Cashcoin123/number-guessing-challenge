@@ -1,64 +1,36 @@
 # Number Guessing Challenge
 
-A global multiplayer number guessing game with live chat, leaderboard tracking, daily bonuses, and social sharing across web, iPhone, and Android.
+A global multiplayer number guessing game with live chat, scoring, daily bonuses, and social sharing. Available on web, iPhone, and Android.
 
-## Overview
+## 🎮 Features
 
-This repository contains the production foundation for a cross-platform app that lets players:
-
+✅ **Gameplay**
 - Guess a random number between 1 and 100
-- Earn score and build streaks
-- Claim a free daily bonus every 24 hours
-- Play multiple rounds in a replay loop
-- Join a multiplayer live chat room
-- Share their score to social media
-- Compete on a global leaderboard
+- 10 attempts per round
+- Score based on attempts
+- Streak tracking and best score
+- Daily +50 point bonus every 24 hours
 
-## Architecture
+✅ **Multiplayer**
+- Global chat room
+- Real-time leaderboard
+- Player profiles
+- Message history
 
-- Backend: Node.js + Express + Socket.IO
-- Web Frontend: React + Vite
-- Mobile Frontend: React Native + Expo
-- Data: JSON file foundation for local development; ready to be replaced by Firebase/Postgres in production
+✅ **Cross-Platform**
+- Web app (React + Vite)
+- Mobile apps (React Native + Expo)
+- Responsive design for all devices
 
-## Repository Structure
+✅ **Production Ready**
+- Local development setup
+- Deployment to Vercel, Render, and App Stores
+- Socket.IO for real-time features
+- Persistent data storage
 
-```text
-number-guessing-challenge/
-├── README.md
-├── .gitignore
-├── backend/
-│   ├── .env.example
-│   ├── package.json
-│   └── src/
-│       ├── server.js
-│       ├���─ config/
-│       │   └── db.js
-│       ├── routes/
-│       │   ├── gameRoutes.js
-│       │   ├── chatRoutes.js
-│       │   └── userRoutes.js
-│       └── utils/
-│           └── helpers.js
-├── frontend/
-│   ├── index.html
-│   ├── package.json
-│   └── src/
-│       ├── App.jsx
-│       └── main.jsx
-├── mobile/
-│   ├── App.js
-│   ├── app.json
-│   └── package.json
-├── docs/
-│   └── SETUP.md
-└── LICENSE
-```
+## 🚀 Quick Start
 
-## Local Run
-
-### 1) Backend
-
+### Backend
 ```bash
 cd backend
 npm install
@@ -66,59 +38,101 @@ cp .env.example .env
 npm run dev
 ```
 
-### 2) Frontend
-
+### Frontend
 ```bash
 cd frontend
 npm install
 npm run dev
 ```
 
-### 3) Mobile
-
+### Mobile
 ```bash
 cd mobile
 npm install
 npx expo start
 ```
 
-## Environment Files
+Open http://localhost:5173 in your browser.
 
-Backend `.env` example:
+## 📚 Documentation
 
-```env
-PORT=5000
-JWT_SECRET=change-me
-CLIENT_URL=http://localhost:5173
+- [Setup Guide](docs/SETUP.md) — Local development
+- [Deployment Guide](docs/DEPLOYMENT.md) — Production setup
+- [API Documentation](docs/API.md) — API endpoints
+
+## 🏗️ Architecture
+
+```
+┌─────────────────────────────────────┐
+│   Frontend (React + Vite)           │
+│   Mobile (React Native + Expo)      │
+└──────────────┬──────────────────────┘
+               │ HTTP/WebSocket
+               ↓
+┌─────────────────────────────────────┐
+│   Backend (Node.js + Express)       │
+│   Real-time (Socket.IO)             │
+└──────────────┬──────────────────────┘
+               │ File System / Firebase / Postgres
+               ↓
+┌─────────────────────────────────────┐
+│   Data Store                        │
+│   • game_data.json                  │
+│   • chat_messages.json              │
+│   • users.json                      │
+│   • leaderboard.json                │
+└─────────────────────────────────────┘
 ```
 
-## API Endpoints
+## 📊 API Endpoints
 
-### Health
-- `GET /api/health`
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/health` | Health check |
+| GET | `/api/game/stats` | Game statistics |
+| POST | `/api/game/guess` | Submit guess |
+| POST | `/api/game/bonus` | Claim daily bonus |
+| GET | `/api/chat/messages` | Chat history |
+| POST | `/api/chat/send` | Send message |
+| GET | `/api/leaderboard` | Global rankings |
 
-### Game
-- `POST /api/game/start`
-- `POST /api/game/guess`
-- `GET /api/game/stats`
+## 🌍 Deployment
 
-### Chat
-- `GET /api/chat/messages`
-- `POST /api/chat/send`
+### Backend
+- **Render:** `git push origin main` (auto-deploy)
+- **Railway:** Connect GitHub repo
+- **Heroku:** `git push heroku main`
 
-### Players
-- `POST /api/users/register`
-- `GET /api/users/:id`
+### Frontend
+- **Vercel:** `vercel --prod`
+- **Netlify:** `netlify deploy --prod`
 
-## Production Roadmap
+### Mobile
+- **iOS:** `eas build --platform ios` → `eas submit --platform ios`
+- **Android:** `eas build --platform android` → `eas submit --platform android`
 
-- Replace JSON storage with Firebase or PostgreSQL
-- Add WebSocket rooms for global realtime chat
-- Add user auth and profiles
-- Deploy backend to Render/Railway/Firebase
-- Deploy web frontend to Vercel/Netlify
-- Build mobile apps with Expo EAS
+## 🔄 Next Steps
 
-## License
+- [ ] Add Firebase/Postgres database
+- [ ] Implement user authentication
+- [ ] Deploy backend to production
+- [ ] Deploy web to production
+- [ ] Build and submit mobile apps
+- [ ] Add push notifications
+- [ ] Set up analytics and monitoring
 
-MIT
+## 📝 License
+
+MIT — See [LICENSE](LICENSE) for details.
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Commit changes
+4. Push to branch
+5. Open a pull request
+
+---
+
+Built with ❤️ by **Cashcoin123**

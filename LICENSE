@@ -1,0 +1,43 @@
+# Setup Guide
+
+This guide helps you get the Number Guessing Challenge repository running locally.
+
+## Backend Setup
+
+```bash
+cd backend
+npm install
+cp .env.example .env
+npm run dev
+```
+
+## Frontend Setup
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+## Mobile Setup
+
+```bash
+cd mobile
+npm install
+npx expo start
+```
+
+## Troubleshooting
+
+- If the backend does not start, verify the `PORT` in `.env` is free.
+- If the frontend cannot connect, confirm the backend is running on port 5000.
+- If Expo fails, run `npx expo install` to sync dependencies.
+
+## Production Preparation
+
+Before deployment, replace the JSON-based local storage with:
+
+- Firebase Firestore
+- PostgreSQL
+- Redis for active sessions
+- Socket.IO rooms for multiplayer chat

@@ -1,0 +1,55 @@
+require('dotenv').config();
+const express = require('express');
+const cors = require('cors');
+const http = require('http');
+const { Server } = require('socket.io');
+const gameRoutes = require('./routes/gameRoutes');
+const chatRoutes = require('./routes/chatRoutes');
+const userRoutes = require('./routes/userRoutes');
+
+const app = express();
+const server = http.createServer(app);
+const io = new Server(server, {
+  cors: {
+    origin: '*',
+    methods: ['GET', 'POST'],
+  },
+});
+
+const PORT = process.env.PORT || 5000;
+
+app.use(cors());
+app.use(express.json());
+
+app.get('/api/health', (req, res) => {
+  res.json({ ok: true, message: 'API is running.' });
+});
+
+app.use('/api/game', gameRoutes);
+app.use('/api/chat', chatRoutes);
+app.use('/api/users', userRoutes);
+
+io.on('connection', (socket) => {
+  console.log('Client connected:', socket.id);
+
+  socket.on('join-chat', (username) => {
+    socket.join('global-chat');
+    io.to('global-chat').emit('chat-message', {
+      username,
+      message: `${username} joined the chat room.`,
+      timestamp: new Date().toISOString(),
+    });
+  });
+
+  socket.on('send-message', (payload) => {
+    io.to('global-chat').emit('chat-message', payload);
+  });
+
+  socket.on('disconnect', () => {
+    console.log('Client disconnected:', socket.id);
+  });
+});
+
+server.listen(PORT, () => {
+  console.log(`Server running on http://localhost:${PORT}`);
+});

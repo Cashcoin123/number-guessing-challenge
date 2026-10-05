@@ -32,7 +32,7 @@ number-guessing-challenge/
 │   ├── package.json
 │   └── src/
 │       ├── server.js
-│       ├���─ config/
+│       ├── config/
 │       │   └── db.js
 │       ├── routes/
 │       │   ├── gameRoutes.js

@@ -1,11 +1,37 @@
+# Dependencies
 node_modules/
+
+# Local environment files (keep the templates!)
 .env
 .env.local
 .env.*
-.DS_Store
+!.env.example
+
+# Build output
 dist/
 build/
-.expo/
 web-build/
+
+# Expo / React Native
+.expo/
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+*.orig.*
+
+# Test coverage
 coverage/
+
+# Logs
 *.log
+npm-debug.log*
+
+# Runtime data (local JSON persistence)
+backend/data/*.json
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/

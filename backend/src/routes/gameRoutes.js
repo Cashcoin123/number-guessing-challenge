@@ -1,10 +1,24 @@
 const express = require('express');
+
 const storage = require('../services/storage');
+const roundStore = require('../services/roundStore');
 const { requireAuth } = require('../middleware/auth');
+const { parseIntegerInRange } = require('../utils/helpers');
 
 const router = express.Router();
 
-// GET /api/game/stats
+const BONUS_WINDOW_MS = 24 * 60 * 60 * 1000;
+const DEFAULT_BONUS = 50;
+
+function clientRound(round) {
+  return {
+    roundId: round.roundId,
+    maxAttempts: round.maxAttempts,
+    startedAt: round.startedAt,
+  };
+}
+
+// GET /api/game/stats (public, read-only)
 router.get('/stats', async (req, res) => {
   const data = await storage.getGameStats();
 
@@ -14,56 +28,58 @@ router.get('/stats', async (req, res) => {
       bestScore: Number(data.bestScore || 0),
       streak: Number(data.streak || 0),
       totalGames: Number(data.totalGames || 0),
-      lastBonusTime: Number(data.lastBonusTime || 0),
     },
   });
 });
 
-// POST /api/game/start
+// POST /api/game/start - create a server-side round. The secret number stays on
+// the server; only the round id and attempt budget are returned (ISSUE-10).
 router.post('/start', (req, res) => {
-  const round = {
-    secretNumber: Math.floor(Math.random() * 100) + 1,
-    maxAttempts: 10,
-    startedAt: new Date().toISOString(),
-  };
-
-  res.json({ ok: true, round });
+  const round = roundStore.createRound();
+  res.json({ ok: true, round: clientRound(round) });
 });
 
-// POST /api/game/guess
+// POST /api/game/guess - the client sends ONLY { roundId, guess }.
 router.post('/guess', (req, res) => {
-  const { secretNumber, guess } = req.body;
+  const { roundId, guess } = req.body;
+  const parsedGuess = parseIntegerInRange(guess, 1, 100);
 
-  if (secretNumber == null || guess == null) {
-    return res.status(400).json({ ok: false, message: 'secretNumber and guess are required.' });
+  if (typeof roundId !== 'string' || !roundId) {
+    return res.status(400).json({ ok: false, message: 'A valid roundId is required.' });
   }
 
-  if (guess < secretNumber) {
-    return res.json({ ok: true, result: 'too-low' });
+  if (parsedGuess === null) {
+    return res.status(400).json({ ok: false, message: 'guess must be an integer between 1 and 100.' });
   }
 
-  if (guess > secretNumber) {
-    return res.json({ ok: true, result: 'too-high' });
+  const outcome = roundStore.submitGuess(roundId, parsedGuess);
+
+  if (!outcome) {
+    return res.status(404).json({ ok: false, message: 'Unknown or expired round. Start a new round.' });
   }
 
-  return res.json({ ok: true, result: 'correct' });
+  return res.json({ ok: true, ...outcome });
 });
 
-// POST /api/game/bonus
+// POST /api/game/bonus - per-user daily bonus (ISSUE-8).
 router.post('/bonus', requireAuth, async (req, res) => {
-  const data = await storage.getGameStats();
+  const uid = req.user && req.user.uid;
+
+  if (!uid) {
+    return res.status(401).json({ ok: false, message: 'Authentication required.' });
+  }
+
   const now = Date.now();
-  const bonusWindowMs = 24 * 60 * 60 * 1000;
+  const record = await storage.getBonusRecord(uid);
+  const lastClaim = Number((record && record.lastClaim) || 0);
 
-  if (now - Number(data.lastBonusTime || 0) >= bonusWindowMs) {
-    const nextStats = { ...data, lastBonusTime: now };
-    await storage.saveGameStats(nextStats);
-
+  if (!lastClaim || now - lastClaim >= BONUS_WINDOW_MS) {
+    await storage.saveBonusRecord(uid, { lastClaim: now });
     return res.json({
       ok: true,
       granted: true,
-      bonus: 50,
-      nextAvailableAt: now + bonusWindowMs,
+      bonus: DEFAULT_BONUS,
+      nextAvailableAt: now + BONUS_WINDOW_MS,
     });
   }
 
@@ -71,7 +87,7 @@ router.post('/bonus', requireAuth, async (req, res) => {
     ok: true,
     granted: false,
     bonus: 0,
-    nextAvailableAt: Number(data.lastBonusTime || 0) + bonusWindowMs,
+    nextAvailableAt: lastClaim + BONUS_WINDOW_MS,
   });
 });
 

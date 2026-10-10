@@ -1,34 +1,68 @@
 require('dotenv').config();
+
+const http = require('http');
 const express = require('express');
 const cors = require('cors');
-const http = require('http');
 const { Server } = require('socket.io');
 
 const storage = require('./services/storage');
+const { authenticateSocket } = require('./middleware/auth');
+const { normaliseMessage } = require('./utils/helpers');
 const gameRoutes = require('./routes/gameRoutes');
 const chatRoutes = require('./routes/chatRoutes');
 const userRoutes = require('./routes/userRoutes');
 
 const app = express();
+
+// --- CORS -------------------------------------------------------------------
+// When CLIENT_URL is configured, restrict browser origins to that allowlist
+// (comma-separated) instead of reflecting any origin (ISSUE-5). If it is not
+// set we keep the permissive development default so local tooling still works.
+function buildOriginSetting() {
+  const configured = (process.env.CLIENT_URL || '')
+    .split(',')
+    .map((value) => value.trim())
+    .filter(Boolean);
+
+  if (configured.length === 0) {
+    return true;
+  }
+
+  return configured;
+}
+
+const allowedOrigins = buildOriginSetting();
+const corsOptions = {
+  origin: allowedOrigins,
+  methods: ['GET', 'POST'],
+};
+
 const server = http.createServer(app);
-const io = new Server(server, {
-  cors: {
-    origin: '*',
-    methods: ['GET', 'POST'],
-  },
-});
+const io = new Server(server, { cors: corsOptions });
 
 const PORT = process.env.PORT || 5000;
 
-app.use(cors());
-app.use(express.json());
+app.use(cors(corsOptions));
+app.use(express.json({ limit: '32kb' }));
 
+// Reject malformed JSON bodies with a clean 400 instead of a 500.
+app.use((err, req, res, next) => {
+  if (err && err.type === 'entity.parse.failed') {
+    return res.status(400).json({ ok: false, message: 'Malformed JSON body.' });
+  }
+  return next(err);
+});
+
+// The Socket.IO instance is shared with route handlers for realtime broadcasts.
+app.set('io', io);
+
+// GET /api/health - liveness only; does not disclose the auth mode or config
+// (ISSUE-2).
 app.get('/api/health', (req, res) => {
   res.json({
     ok: true,
     message: 'API is running.',
     timestamp: new Date().toISOString(),
-    authMode: process.env.ENABLE_AUTH === 'true' ? 'enabled' : 'disabled',
   });
 });
 
@@ -52,32 +86,67 @@ app.get('/api/leaderboard', async (req, res) => {
   res.json({ ok: true, leaderboard });
 });
 
-io.on('connection', (socket) => {
-  console.log('Client connected:', socket.id);
+// --- Socket.IO --------------------------------------------------------------
+// Every socket is authenticated during the handshake and its identity is bound
+// to the connection; clients cannot forge a username and payloads are validated
+// and bounded (ISSUE-6).
+io.use(async (socket, next) => {
+  const user = await authenticateSocket(socket);
 
-  socket.on('join-chat', (username) => {
-    socket.join('global-chat');
+  if (!user) {
+    return next(new Error('unauthorized'));
+  }
+
+  socket.data.user = user;
+  socket.data.username = user.username || user.name || user.email || 'player';
+  return next();
+});
+
+io.on('connection', (socket) => {
+  socket.join('global-chat');
+
+  socket.on('join-chat', () => {
     io.to('global-chat').emit('chat-message', {
-      username,
-      message: `${username} joined the chat room.`,
+      username: socket.data.username,
+      message: `${socket.data.username} joined the chat room.`,
       timestamp: new Date().toISOString(),
       system: true,
     });
   });
 
-  socket.on('send-message', (payload) => {
-    io.to('global-chat').emit('chat-message', payload);
+  socket.on('send-message', async (payload) => {
+    const source = payload && typeof payload === 'object' ? payload : {};
+    const cleanMessage = normaliseMessage(source.message);
+
+    if (!cleanMessage) {
+      return;
+    }
+
+    // Identity is taken from the authenticated socket, never from the payload.
+    const entry = {
+      username: socket.data.username,
+      message: cleanMessage,
+      score: 0,
+      timestamp: new Date().toISOString(),
+      userId: socket.data.user.uid || null,
+    };
+
+    const messages = await storage.getChatMessages();
+    await storage.saveChatMessages([...messages, entry].slice(-100));
+
+    io.to('global-chat').emit('chat-message', entry);
   });
 
   socket.on('disconnect', () => {
-    console.log('Client disconnected:', socket.id);
+    // no-op: kept for symmetry / observability hooks
   });
 });
 
-// Expose the Socket.IO instance so route handlers can broadcast realtime events.
-app.set('io', io);
+if (require.main === module) {
+  server.listen(PORT, () => {
+    console.log(`✅ Server running on http://localhost:${PORT}`);
+    console.log(`📊 Health check: http://localhost:${PORT}/api/health`);
+  });
+}
 
-server.listen(PORT, () => {
-  console.log(`✅ Server running on http://localhost:${PORT}`);
-  console.log(`📊 Health check: http://localhost:${PORT}/api/health`);
-});
+module.exports = { app, server, io };
